@@ -3,7 +3,6 @@ import OrderStatus from './order-status';
 import { getOrder } from '@/features/order/api';
 
 type Props = {
-  // ✅ ใน Next 15 ต้องระบุว่า params เป็น Promise แล้ว await ข้างใน
   params: Promise<{ id: string }>;
 };
 

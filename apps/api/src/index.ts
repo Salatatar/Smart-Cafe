@@ -71,7 +71,12 @@ async function start() {
   const app = Fastify({ logger: true });
 
   // Plugins
-  await app.register(cors, { origin: true });
+  await app.register(cors, {
+    origin: ['http://localhost:3000'], // ชี้เฉพาะต้นทาง dev ของคุณ
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
+
   await app.register(swagger, {
     openapi: {
       info: { title: 'SmartCafe API', version: '0.1.0' },
@@ -148,6 +153,20 @@ async function start() {
     // initial ping
     client.write(`data: ${JSON.stringify({ type: 'hello' })}\n\n`);
     return reply; // keep open
+  });
+
+  // GET /api/orders – list orders (ทั้งหมด หรือ filter ผ่าน query)
+  app.get('/api/orders', async (req, reply) => {
+    // query: status=preparing|ready (optional)
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const status = url.searchParams.get('status') as 'preparing' | 'ready' | null;
+
+    let list = Array.from(orders.values());
+    if (status) list = list.filter((o) => o.status === status);
+
+    // เรียงตามเวลา สร้างใหม่ -> เก่า
+    list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return reply.send(list);
   });
 
   const port = Number(process.env.PORT || 4000);
