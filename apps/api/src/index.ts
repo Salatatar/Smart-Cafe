@@ -169,6 +169,95 @@ async function start() {
     return reply.send(list);
   });
 
+  // --- Analytics Helpers ---
+  function withinRange(d: Date, from?: Date, to?: Date) {
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
+  }
+
+  // GET /api/analytics/sales?from=2025-08-01&to=2025-08-31
+  app.get('/api/analytics/sales', async (req, reply) => {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+    const fromD = from ? new Date(from + 'T00:00:00') : undefined;
+    const toD = to ? new Date(to + 'T23:59:59') : undefined;
+
+    const map = new Map<string, { date: string; orders: number; revenue: number }>();
+    for (const o of orders.values()) {
+      const d = new Date(o.created_at);
+      if (!withinRange(d, fromD, toD)) continue;
+      const key = d.toISOString().slice(0, 10);
+      const row = map.get(key) || { date: key, orders: 0, revenue: 0 };
+      row.orders += 1;
+      row.revenue += o.total_price;
+      map.set(key, row);
+    }
+    const rows = Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+    return reply.send(rows);
+  });
+
+  // GET /api/analytics/top-menu?limit=10&from=...&to=...
+  app.get('/api/analytics/top-menu', async (req, reply) => {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const limit = Number(url.searchParams.get('limit') || 10);
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+    const fromD = from ? new Date(from + 'T00:00:00') : undefined;
+    const toD = to ? new Date(to + 'T23:59:59') : undefined;
+
+    const count = new Map<
+      number,
+      { item_id: number; name: string; qty: number; revenue: number }
+    >();
+    for (const o of orders.values()) {
+      const d = new Date(o.created_at);
+      if (!withinRange(d, fromD, toD)) continue;
+      for (const it of o.items) {
+        const m = menu.find((m) => m.item_id === it.item_id);
+        const row = count.get(it.item_id) || {
+          item_id: it.item_id,
+          name: m?.name || `#${it.item_id}`,
+          qty: 0,
+          revenue: 0,
+        };
+        row.qty += it.qty;
+        row.revenue += (m?.price || 0) * it.qty;
+        count.set(it.item_id, row);
+      }
+    }
+    const rows = Array.from(count.values())
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, limit);
+    return reply.send(rows);
+  });
+
+  // GET /api/analytics/peak-hours?from=...&to=...
+  app.get('/api/analytics/peak-hours', async (req, reply) => {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+    const fromD = from ? new Date(from + 'T00:00:00') : undefined;
+    const toD = to ? new Date(to + 'T23:59:59') : undefined;
+
+    const hours = Array.from({ length: 24 }, (_, h) => ({ hour: h, orders: 0, revenue: 0 }));
+    for (const o of orders.values()) {
+      if (!o.created_at || !o.total_price) continue; // ข้ามถ้าไม่มีค่า
+
+      const d = new Date(o.created_at);
+      if (!withinRange(d, fromD, toD)) continue;
+
+      const h = d.getHours();
+      if (hours[h]) {
+        hours[h].orders += 1;
+        hours[h].revenue += o.total_price ?? 0;
+      }
+    }
+
+    return reply.send(hours);
+  });
+
   const port = Number(process.env.PORT || 4000);
   await app.listen({ port, host: '0.0.0.0' });
   app.log.info(`API ready on http://localhost:${port}`);
