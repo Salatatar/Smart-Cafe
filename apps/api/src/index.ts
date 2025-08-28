@@ -1,0 +1,165 @@
+// apps/api/src/index.ts
+import Fastify from 'fastify';
+import cors from '@fastify/cors';
+import jwt from 'jsonwebtoken';
+import { z } from 'zod';
+import swagger from '@fastify/swagger';
+import swaggerUI from '@fastify/swagger-ui';
+
+// ------------------------------
+// Types & Mock DB
+// ------------------------------
+type Order = {
+  order_id: number;
+  items: { item_id: number; toppings?: number[]; qty: number }[];
+  total_price: number;
+  status: 'preparing' | 'ready';
+  created_at: string;
+  completed_at: string | null;
+};
+
+const menu = Array.from({ length: 20 }).map((_, i) => ({
+  item_id: i + 1,
+  name: ['Americano', 'Latte', 'Cappuccino', 'Mocha'][i % 4] + ' #' + (i + 1),
+  price: 60 + (i % 5) * 5,
+  img: '',
+}));
+
+let seq = 1000;
+const orders = new Map<number, Order>();
+
+// ------------------------------
+// SSE utilities
+// ------------------------------
+const sseClients = new Set<{ id: string; write: (chunk: string) => void }>();
+
+type SSEPayload =
+  | { type: 'hello' }
+  | { type: 'order_created'; order: Order }
+  | { type: 'order_updated'; order: Order };
+
+function sseBroadcast(data: SSEPayload) {
+  const payload = `data: ${JSON.stringify(data)}\n\n`;
+  for (const c of sseClients) c.write(payload);
+}
+
+// ------------------------------
+// Validation Schemas (zod)
+// ------------------------------
+const AuthRes = z.object({ token: z.string(), expires_in: z.number() });
+
+const OrderItem = z.object({
+  item_id: z.number(),
+  toppings: z.number().array().optional(),
+  qty: z.number().min(1),
+});
+
+const CreateOrderBody = z.object({
+  items: z.array(OrderItem),
+  total_price: z.number().nonnegative(),
+});
+
+const UpdateOrderBody = z.object({
+  order_id: z.number(),
+  status: z.enum(['preparing', 'ready']),
+});
+
+// ------------------------------
+// Server bootstrap
+// ------------------------------
+async function start() {
+  const app = Fastify({ logger: true });
+
+  // Plugins
+  await app.register(cors, { origin: true });
+  await app.register(swagger, {
+    openapi: {
+      info: { title: 'SmartCafe API', version: '0.1.0' },
+    },
+  });
+  await app.register(swaggerUI, { routePrefix: '/api/docs' });
+
+  const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+
+  // ----------------------------
+  // Routes
+  // ----------------------------
+  app.post('/api/authen', async (_req, reply) => {
+    const token = jwt.sign({ sub: 'demo-user' }, JWT_SECRET, { expiresIn: '1h' });
+    return reply.send(AuthRes.parse({ token, expires_in: 3600 }));
+  });
+
+  app.get('/api/menu', async (_req, reply) => {
+    return reply.send(menu);
+  });
+
+  app.post('/api/order', async (req, reply) => {
+    const body = CreateOrderBody.parse(req.body);
+    const id = ++seq;
+    const now = new Date().toISOString();
+    const order: Order = {
+      order_id: id,
+      items: body.items,
+      total_price: body.total_price,
+      status: 'preparing',
+      created_at: now,
+      completed_at: null,
+    };
+    orders.set(id, order);
+    sseBroadcast({ type: 'order_created', order });
+    return reply.send({ order_id: id });
+  });
+
+  const OrderIdParams = z.object({ id: z.string().regex(/^\d+$/) });
+
+  app.get('/api/order/:id', async (req, reply) => {
+    const { id } = OrderIdParams.parse(req.params);
+    const found = orders.get(Number(id));
+    if (!found) return reply.code(404).send({ message: 'not found' });
+    return reply.send(found);
+  });
+
+  app.patch('/api/order/update', async (req, reply) => {
+    const body = UpdateOrderBody.parse(req.body);
+    const found = orders.get(body.order_id);
+    if (!found) return reply.code(404).send({ message: 'not found' });
+    found.status = body.status;
+    if (body.status === 'ready') found.completed_at = new Date().toISOString();
+    sseBroadcast({ type: 'order_updated', order: found });
+    return reply.send({ order_id: found.order_id, status: found.status });
+  });
+
+  // SSE stream for real-time updates
+  app.get('/api/orders/stream', async (req, reply) => {
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+    });
+    const client = {
+      id: Math.random().toString(36).slice(2),
+      write: (chunk: string) => reply.raw.write(chunk),
+    };
+    sseClients.add(client);
+    req.raw.on('close', () => {
+      sseClients.delete(client);
+    });
+    // initial ping
+    client.write(`data: ${JSON.stringify({ type: 'hello' })}\n\n`);
+    return reply; // keep open
+  });
+
+  const port = Number(process.env.PORT || 4000);
+  await app.listen({ port, host: '0.0.0.0' });
+  app.log.info(`API ready on http://localhost:${port}`);
+  app.log.info(`Docs at http://localhost:${port}/api/docs`);
+}
+
+start().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+
+// Ensure this file is treated as a module
+export {};

@@ -4,22 +4,42 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "web:dev": "pnpm --filter web dev",
+    "api:dev": "pnpm --filter api dev",
+    "dev": "concurrently -n web,api -c auto \"pnpm web:dev\" \"pnpm api:dev\"",
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepare": "husky install",
-    "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
+    "lint": "eslint apps --ext .ts,.tsx --max-warnings=0",
+    "lint:fix": "eslint apps --ext .ts,.tsx --fix",
     "format": "prettier -w .",
     "format:check": "prettier -c ."
+  },
+  "lint-staged": {
+    "apps/**/*.{ts,tsx,js,jsx}": [
+      "eslint --cache --fix",
+      "prettier -w"
+    ],
+    "apps/**/*.{json,md,css,scss}": [
+      "prettier -w"
+    ]
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.15.0",
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.34.0",
     "@typescript-eslint/eslint-plugin": "^8.41.0",
     "@typescript-eslint/parser": "^8.41.0",
+    "concurrently": "^9.2.1",
     "eslint": "^9.34.0",
-    "husky": "^8.0.0",
+    "eslint-config-next": "15.5.2",
+    "eslint-plugin-next": "^0.0.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.3.0",
+    "husky": "^8.0.3",
     "lint-staged": "^16.1.5",
     "prettier": "^3.6.2",
     "typescript": "^5.9.2",
