@@ -45,11 +45,35 @@ export default function Charts({
     queryFn: () => getPeakHours(from, to),
   });
 
+  const hasNestedData = <T,>(val: unknown): val is { data: T[] } => {
+    return (
+      typeof val === 'object' &&
+      val !== null &&
+      'data' in (val as Record<string, unknown>) &&
+      Array.isArray((val as { data: unknown }).data)
+    );
+  };
+
+  const normalize = <T,>(q: { data?: unknown }): T[] => {
+    const d = q.data;
+    if (Array.isArray(d)) return d as T[];
+    if (hasNestedData<T>(d)) return d.data;
+    return [];
+  };
+
+  const salesData = normalize<SalesRow>(sales);
+  const topData = normalize<TopMenuRow>(top);
+  const hoursData = normalize<PeakHourRow>(hours);
+
+  console.log('salesData', salesData);
+  console.log('topData', topData);
+  console.log('hoursData', hoursData);
+
   const onExport = (which: 'sales' | 'top' | 'hours') => {
-    const map = { sales, top, hours } as const;
-    const q = map[which];
-    if (!q.data?.length) return alert('ยังไม่มีข้อมูลให้ส่งออก');
-    const csv = toCSV(q.data as unknown as Record<string, unknown>[]);
+    const map = { sales: salesData, top: topData, hours: hoursData } as const;
+    const rows = map[which];
+    if (!rows.length) return alert('ยังไม่มีข้อมูลให้ส่งออก');
+    const csv = toCSV(rows as unknown as Record<string, unknown>[]);
     downloadCSV(csv, `${which}_${from}_${to}.csv`);
   };
 
@@ -90,7 +114,7 @@ export default function Charts({
         </div>
         <div className="h-64 w-full">
           <ResponsiveContainer>
-            <LineChart data={sales.data ?? []} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
+            <LineChart data={salesData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
@@ -111,7 +135,7 @@ export default function Charts({
         </div>
         <div className="h-72 w-full">
           <ResponsiveContainer>
-            <BarChart data={top.data ?? []} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
+            <BarChart data={topData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-20} height={60} />
               <YAxis tick={{ fontSize: 12 }} />
@@ -132,7 +156,7 @@ export default function Charts({
         </div>
         <div className="h-64 w-full">
           <ResponsiveContainer>
-            <BarChart data={hours.data ?? []} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
+            <BarChart data={hoursData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="hour" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />

@@ -1,22 +1,43 @@
-export type SSEPayload =
-  | { type: 'hello' }
-  | { type: 'order_created'; order: { order_id: number; status: 'preparing' | 'ready' } }
-  | { type: 'order_updated'; order: { order_id: number; status: 'preparing' | 'ready' } };
+export type OrderItem = {
+  item_id: number;
+  qty: number;
+  toppings?: number[];
+  name?: string;
+};
 
-export function subscribeOrders(cb: (data: SSEPayload) => void): () => void {
-  const base = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:4000';
-  const ev = new EventSource(`${base}/api/orders/stream`);
-  ev.onmessage = (e) => {
-    try {
-      const data = JSON.parse(e.data) as SSEPayload;
-      cb(data);
-    } catch {
-      // intentionally empty – error handled by upstream retry/backoff
-    }
-  };
-  ev.onerror = (err) => {
-    // intentionally log; browser will auto-retry SSE
-    if (process.env.NODE_ENV !== 'production') console.debug('SSE error', err);
-  };
-  return () => ev.close();
+export type OrderCreatedEvent = {
+  type: 'order_created';
+  order_id: number;
+  status: 'preparing';
+  total_price: number;
+  items: OrderItem[];
+  created_at: string; // ISO
+  completed_at: string | null;
+};
+
+export type OrderUpdatedEvent = {
+  type: 'order_updated';
+  order_id: number;
+  status: 'preparing' | 'ready';
+  completed_at: string | null;
+  total_price?: number;
+  items?: OrderItem[];
+};
+
+export type OrderEvent = OrderCreatedEvent | OrderUpdatedEvent;
+
+export function subscribeOrders(handler: (ev: OrderEvent) => void) {
+  const es = new EventSource('/api/orders/stream');
+
+  es.addEventListener('order_created', (e) => {
+    const data = JSON.parse((e as MessageEvent).data);
+    handler({ type: 'order_created', ...data });
+  });
+
+  es.addEventListener('order_updated', (e) => {
+    const data = JSON.parse((e as MessageEvent).data);
+    handler({ type: 'order_updated', ...data });
+  });
+
+  return () => es.close();
 }

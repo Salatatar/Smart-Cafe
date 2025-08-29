@@ -13,6 +13,10 @@ export default function MenuList() {
   // ✅ ใช้ selector ตรงๆ
   const add = useCart((s) => s.add);
 
+  if (!Array.isArray(data)) {
+    return <div>ไม่มีเมนู</div>;
+  }
+
   if (isLoading) return <div>กำลังโหลดเมนู...</div>;
 
   return (

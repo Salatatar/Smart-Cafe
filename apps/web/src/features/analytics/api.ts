@@ -23,11 +23,14 @@ export async function getTopMenu(from?: string, to?: string, limit = 10): Promis
   return res.json();
 }
 
-export async function getPeakHours(from?: string, to?: string): Promise<PeakHourRow[]> {
-  const u = new URL(base + '/api/analytics/peak-hours');
-  if (from) u.searchParams.set('from', from);
-  if (to) u.searchParams.set('to', to);
-  const res = await fetch(u, { cache: 'no-store' });
-  if (!res.ok) throw new Error('fetch peak-hours failed');
-  return res.json();
+export async function getPeakHours(from?: string, to?: string) {
+  const url = new URL('/api/analytics/peak-hours', location.origin);
+  if (from) url.searchParams.set('from', from);
+  if (to) url.searchParams.set('to', to);
+
+  const res = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+  if (!res.ok) throw new Error('Failed to fetch peak hours');
+  const json = await res.json();
+  // รองรับทั้ง {hours: []}, {data: []}, หรือ [] ตรง ๆ
+  return Array.isArray(json) ? json : (json.hours ?? json.data ?? []);
 }
