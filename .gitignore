@@ -6,3 +6,5 @@ coverage
 .playwright
 .idea
 .vscode
+# Prisma migrations
+**/prisma/migrations/
