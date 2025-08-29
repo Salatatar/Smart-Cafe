@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest",
+    "test:web": "vitest --run"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.85.5",

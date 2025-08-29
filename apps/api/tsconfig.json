@@ -6,5 +6,5 @@
     "moduleResolution": "Bundler",
     "target": "ES2022"
   },
-  "include": ["src"]
+  "include": ["src", "vitest.config.ts"]
 }

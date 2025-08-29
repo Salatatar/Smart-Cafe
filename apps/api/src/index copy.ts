@@ -12,6 +12,22 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { prisma } from './db';
 import type { Prisma } from '@prisma/client';
+// import type { Order } from '@prisma/client';
+
+// ------------------------------
+// SSE utilities
+// ------------------------------
+// const sseClients = new Set<{ id: string; write: (chunk: string) => void }>();
+
+// type SSEPayload =
+//   | { type: 'hello' }
+//   | { type: 'order_created'; order: Order }
+//   | { type: 'order_updated'; order: Order };
+
+// function sseBroadcast(data: SSEPayload) {
+//   const payload = `data: ${JSON.stringify(data)}\n\n`;
+//   for (const c of sseClients) c.write(payload);
+// }
 
 type Client = { write: (chunk: string) => void; close: () => void };
 const clients = new Set<Client>();
@@ -123,7 +139,10 @@ const PeakRowDTO = z.object({
 });
 const PeakHoursResponse = z.object({ hours: z.array(PeakRowDTO) });
 
-export async function buildApp() {
+// ------------------------------
+// Server bootstrap
+// ------------------------------
+async function start() {
   const app = Fastify({ logger: true }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);
@@ -561,7 +580,9 @@ export async function buildApp() {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
 
-    (res as any).flushHeaders?.();
+    if (typeof (res as { flushHeaders?: () => void }).flushHeaders === 'function') {
+      res.flushHeaders();
+    }
 
     const client: Client = {
       write: (chunk) => res.write(chunk),
@@ -584,10 +605,15 @@ export async function buildApp() {
     req.raw.on('close', () => client.close());
   });
 
-  return app;
+  // Start
+  const port = Number(process.env.PORT || 4000);
+  await app.listen({ port, host: '0.0.0.0' });
+  app.log.info(`API ready on http://localhost:${port}`);
+  app.log.info(`Docs at http://localhost:${port}/api/docs`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  // รันจริงเฉพาะเมื่อเรียกตรงจาก node
-  buildApp().then((app) => app.listen({ port: Number(process.env.PORT || 4000), host: '0.0.0.0' }));
-}
+start().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+export {};

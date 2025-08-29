@@ -7,12 +7,25 @@
     "web:dev": "pnpm --filter web dev",
     "api:dev": "pnpm --filter api dev",
     "dev": "concurrently -n web,api -c auto \"pnpm web:dev\" \"pnpm api:dev\"",
-    "test": "echo \"Error: no test specified\" && exit 1",
     "prepare": "husky install",
     "lint": "eslint apps --ext .ts,.tsx --max-warnings=0",
     "lint:fix": "eslint apps --ext .ts,.tsx --fix",
     "format": "prettier -w .",
-    "format:check": "prettier -c ."
+    "format:check": "prettier -c .",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "test:api": "pnpm --filter api vitest --run",
+    "test:web": "pnpm --filter web vitest --run",
+    "e2e": "pnpm --filter web playwright test",
+    "e2e:ui": "pnpm --filter web playwright test --ui",
+    "a11y": "pnpm --filter web playwright test a11y.spec.ts",
+    "lhci:collect": "lhci collect --numberOfRuns=2",
+    "lhci:assert": "lhci assert",
+    "dev:api:reset": "pnpm --filter api exec prisma migrate reset -f --skip-generate --skip-seed && pnpm --filter api run prisma:seed",
+    "dev:api": "pnpm --filter api dev",
+    "dev:web": "pnpm --filter web dev",
+    "dev:both": "concurrently -n api,web -c auto \"pnpm dev:api\" \"pnpm dev:web\"",
+    "e2e:run": "pnpm dev:api:reset && start /B pnpm dev:both && timeout 5 && pnpm e2e"
   },
   "lint-staged": {
     "apps/**/*.{ts,tsx,js,jsx}": [
@@ -28,10 +41,14 @@
   "license": "ISC",
   "packageManager": "pnpm@10.15.0",
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.34.0",
+    "@lhci/cli": "^0.15.1",
+    "@playwright/test": "^1.55.0",
     "@typescript-eslint/eslint-plugin": "^8.41.0",
     "@typescript-eslint/parser": "^8.41.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "concurrently": "^9.2.1",
     "eslint": "^9.34.0",
     "eslint-config-next": "15.5.2",
@@ -42,7 +59,9 @@
     "husky": "^8.0.3",
     "lint-staged": "^16.1.5",
     "prettier": "^3.6.2",
+    "tsx": "^4.20.5",
     "typescript": "^5.9.2",
-    "typescript-eslint": "^8.41.0"
+    "typescript-eslint": "^8.41.0",
+    "vitest": "^3.2.4"
   }
 }
