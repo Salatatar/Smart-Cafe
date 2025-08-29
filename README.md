@@ -22,8 +22,8 @@ pnpm dev:both   # run api (4000) + web (3000)
 
 ## 🌐 เปิดใช้งาน
 - **Customer** → http://localhost:3000/menu
-- **Barista** → http://localhost:3000/staff/barista
-- **Manager** → http://localhost:3000/manager/analytics
+- **Barista** → http://localhost:3000/barista
+- **Manager** → http://localhost:3000/analytics
 - **API Docs** → http://localhost:4000/api/docs
 
 ---
