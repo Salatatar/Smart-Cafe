@@ -6,7 +6,6 @@
   "scripts": {
     "web:dev": "pnpm --filter web dev",
     "api:dev": "pnpm --filter api dev",
-    "dev": "concurrently -n web,api -c auto \"pnpm web:dev\" \"pnpm api:dev\"",
     "prepare": "husky install",
     "lint": "eslint apps --ext .ts,.tsx --max-warnings=0",
     "lint:fix": "eslint apps --ext .ts,.tsx --fix",

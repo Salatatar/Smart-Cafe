@@ -1,29 +1,26 @@
-// const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:4000').replace(/\/$/, '');
+export type MenuItem = { id: number; name: string; price: number };
 
-export type MenuItem = {
-  id: number;
-  name: string;
-  price: number;
-  is_available: boolean;
-};
-
-type ApiListResponse<T> = { data: T[] };
-
-// export async function fetchMenu(): Promise<MenuItem[]> {
-//   const res = await fetch(`${API_BASE}/api/menu`, { cache: 'no-store' });
-//   if (!res.ok) throw new Error('Failed to fetch menu');
-//   const json = await res.json();
-//   const items = Array.isArray(json.items) ? json.items : [];
-//   return items.map((it: any) => ({
-//     item_id: it.id,
-//     name: it.name,
-//     price: it.price,
-//   }));
-// }
 export async function fetchMenu(): Promise<MenuItem[]> {
-  const res = await fetch('/api/menu');
-  if (!res.ok) throw new Error('Failed to fetch menu');
-  // ถ้า backend คืนเป็นอาร์เรย์
-  const body = (await res.json()) as MenuItem[] | ApiListResponse<MenuItem>;
-  return Array.isArray(body) ? body : body.data;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 10000);
+
+  try {
+    const res = await fetch('/api/menu', {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store', // dev เท่านั้น
+      signal: ctl.signal,
+    });
+    if (!res.ok) {
+      // ให้ React Query เข้าสู่ error state
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const json = await res.json();
+    // ต้องคืน array เสมอ
+    return Array.isArray(json?.items) ? json.items : [];
+  } catch (err) {
+    console.error('fetchMenu failed:', err);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }

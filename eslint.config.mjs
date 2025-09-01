@@ -1,4 +1,3 @@
-// eslint.config.mjs
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import react from "eslint-plugin-react";
@@ -61,6 +60,7 @@ export default [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
+      '@typescript-eslint/no-explicit-any': 'off',
       // ไม่ต้องปิดซ้ำแล้ว แต่จะคงไว้ก็ไม่เป็นไร
       // "@next/next/no-html-link-for-pages": "off",
     },

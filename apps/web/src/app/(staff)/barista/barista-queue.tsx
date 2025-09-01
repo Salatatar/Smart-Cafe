@@ -1,8 +1,21 @@
 'use client';
+
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getOrders, updateOrder, type Order } from '@/features/order/api';
 import { subscribeOrders } from '@/features/order/sse';
+
+function SkeletonRow() {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm animate-pulse">
+      <div className="flex items-center justify-between gap-3">
+        <div className="h-4 w-24 rounded bg-stone-100" />
+        <div className="h-4 w-16 rounded bg-stone-100" />
+      </div>
+      <div className="mt-3 h-3 w-2/3 rounded bg-stone-100" />
+    </div>
+  );
+}
 
 export default function BaristaQueue() {
   const qc = useQueryClient();
@@ -20,52 +33,34 @@ export default function BaristaQueue() {
     refetchOnWindowFocus: false,
   });
 
-  // ---------- NEW: optimistic update ----------
-  const { mutate: markReady } = useMutation({
+  // ---------- Optimistic update ----------
+  const { mutate: markReady, isPending: marking } = useMutation({
     mutationFn: (orderId: number) => updateOrder(orderId, 'ready'),
     onMutate: async (orderId: number) => {
       await qc.cancelQueries({ queryKey: ['orders'] });
-
       const prevPreparing = qc.getQueryData<Order[]>(['orders', 'preparing']) ?? [];
       const prevReady = qc.getQueryData<Order[]>(['orders', 'ready']) ?? [];
-
-      // หาออเดอร์ที่จะขยับ
       const moving = prevPreparing.find((o) => o.order_id === orderId);
-      if (!moving) {
-        return { prevPreparing, prevReady };
-      }
-
-      // อัปเดต cache ทันที
+      if (!moving) return { prevPreparing, prevReady };
       qc.setQueryData<Order[]>(
         ['orders', 'preparing'],
         prevPreparing.filter((o) => o.order_id !== orderId),
       );
       qc.setQueryData<Order[]>(['orders', 'ready'], [{ ...moving, status: 'ready' }, ...prevReady]);
-
-      // ส่งค่ากลับไว้ rollback
       return { prevPreparing, prevReady };
     },
-    onError: (_err, _orderId, ctx) => {
-      // rollback ถ้า error
+    onError: (_e, _id, ctx) => {
       if (!ctx) return;
       qc.setQueryData<Order[]>(['orders', 'preparing'], ctx.prevPreparing);
       qc.setQueryData<Order[]>(['orders', 'ready'], ctx.prevReady);
     },
     onSettled: () => {
-      // sync กับ server เสมอ
       qc.invalidateQueries({ queryKey: ['orders'] });
     },
   });
-  // ---------- END: optimistic update ----------
+  // ---------- END ----------
 
-  // useEffect(() => {
-  //   const unsub = subscribeOrders((ev) => {
-  //     if (ev.type === 'order_created' || ev.type === 'order_updated') {
-  //       qc.invalidateQueries({ queryKey: ['orders'] });
-  //     }
-  //   });
-  //   return () => unsub();
-  // }, [qc]);
+  // Live updates via SSE
   useEffect(() => {
     const unsub = subscribeOrders((ev) => {
       const getP = () => qc.getQueryData<Order[]>(['orders', 'preparing']) ?? [];
@@ -140,53 +135,55 @@ export default function BaristaQueue() {
         }
       }
     });
-
     return () => unsub();
   }, [qc]);
 
   const lists = useMemo(() => ({ preparing, ready }), [preparing, ready]);
 
-  useEffect(() => {
-    console.log('lists:', lists);
-  }, [lists]);
+  const countPreparing = preparing.length;
+  const countReady = ready.length;
+  const busy = loadingPreparing || loadingReady || marking;
 
   return (
-    <div>
-      <div className="mb-3 inline-flex rounded-xl border bg-white p-1">
+    <section>
+      {/* Tabs */}
+      <div className="inline-flex rounded-2xl border border-stone-200 bg-white p-1 shadow-sm">
         {(['preparing', 'ready'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`rounded-lg px-4 py-2 text-sm ${tab === t ? 'bg-black text-white' : 'text-gray-700'}`}
+            className={`relative rounded-xl px-4 py-2 text-sm font-medium transition-colors 
+              ${tab === t ? 'bg-stone-900 text-white' : 'text-stone-700 hover:bg-stone-50'}`}
           >
-            {t === 'preparing' ? 'คิวที่กำลังทำ' : 'เสร็จแล้ว'}
+            {t === 'preparing' ? 'คิวที่กำลังทำ' : 'พร้อมรับแล้ว'}
+            <span
+              className={`ml-2 inline-flex min-w-5 items-center justify-center rounded-full px-2 text-xs font-semibold 
+              ${tab === t ? 'bg-white/20 text-white' : 'bg-stone-200 text-stone-700'}`}
+              aria-live="polite"
+            >
+              {t === 'preparing' ? countPreparing : countReady}
+            </span>
           </button>
         ))}
       </div>
 
-      <div className="rounded-2xl border bg-white">
+      {/* Desktop table */}
+      <div className="mt-4 hidden md:block rounded-3xl border border-stone-200 bg-white shadow-sm">
         <table className="w-full table-fixed">
           <thead>
-            <tr className="border-b text-left text-sm text-gray-600">
-              <th className="p-3 w-24">Order</th>
-              <th className="p-3">Items</th>
-              <th className="p-3 w-28 text-right">Total</th>
-              <th className="p-3 w-40 text-right">Action</th>
+            <tr className="border-b text-left text-sm text-stone-600">
+              <th className="p-4 w-28">ออเดอร์</th>
+              <th className="p-4">รายการ</th>
+              <th className="p-4 w-32 text-right">รวม</th>
+              <th className="p-4 w-44 text-right">การทำงาน</th>
             </tr>
           </thead>
           <tbody>
             {(lists[tab] ?? []).map((o) => (
-              <tr key={o.order_id} className="border-b last:border-0">
-                <td className="p-3 font-semibold">#{o.order_id}</td>
-                <td className="p-3">
-                  {/* <ul className="list-inside list-disc text-sm text-gray-700">
-                    {o.items.map((it, idx) => (
-                      <li key={idx}>
-                        #{it.item_id} × {it.qty}
-                      </li>
-                    ))}
-                  </ul> */}
-                  <ul className="list-inside list-disc text-sm text-gray-700">
+              <tr key={o.order_id} className="border-b last:border-0 align-top">
+                <td className="p-4 font-semibold text-stone-900">#{o.order_id}</td>
+                <td className="p-4">
+                  <ul className="list-inside list-disc text-sm text-stone-700">
                     {(o.items ?? []).map((it, idx) => (
                       <li key={idx}>
                         {it.name ?? `#${it.item_id}`} × {it.qty}
@@ -194,24 +191,25 @@ export default function BaristaQueue() {
                     ))}
                   </ul>
                 </td>
-                <td className="p-3 text-right">฿{o.total_price}</td>
-                <td className="p-3 text-right">
+                <td className="p-4 text-right font-medium">฿{o.total_price}</td>
+                <td className="p-4 text-right">
                   {o.status === 'preparing' ? (
                     <button
                       onClick={() => markReady(o.order_id)}
-                      className="rounded-lg bg-green-600 px-3 py-2 text-white"
+                      className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+                      disabled={marking}
                     >
                       ทำเสร็จแล้ว
                     </button>
                   ) : (
-                    <span className="text-sm text-gray-500">Ready</span>
+                    <span className="text-sm text-stone-500">Ready</span>
                   )}
                 </td>
               </tr>
             ))}
-            {lists[tab].length === 0 && (
+            {lists[tab]?.length === 0 && (
               <tr>
-                <td className="p-6 text-center text-sm text-gray-500" colSpan={4}>
+                <td className="p-6 text-center text-sm text-stone-500" colSpan={4}>
                   {tab === 'preparing' ? 'ยังไม่มีออเดอร์ในคิว' : 'ยังไม่มีออเดอร์ที่เสร็จสิ้น'}
                 </td>
               </tr>
@@ -220,9 +218,55 @@ export default function BaristaQueue() {
         </table>
       </div>
 
-      <div className="mt-2 text-xs text-gray-500">
-        {loadingPreparing || loadingReady ? 'กำลังอัปเดตรายการ…' : 'อัปเดตเรียลไทม์ด้วย SSE'}
+      {/* Mobile list */}
+      <div className="mt-4 space-y-3 md:hidden">
+        {busy && (
+          <>
+            <SkeletonRow />
+            <SkeletonRow />
+          </>
+        )}
+        {(lists[tab] ?? []).map((o) => (
+          <div
+            key={o.order_id}
+            className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm"
+          >
+            <div className="flex items-center justify-between">
+              <div className="font-semibold text-stone-900">Order #{o.order_id}</div>
+              <div className="text-sm font-medium text-stone-800">฿{o.total_price}</div>
+            </div>
+            <ul className="mt-2 list-inside list-disc text-sm text-stone-700">
+              {(o.items ?? []).map((it, idx) => (
+                <li key={idx}>
+                  {it.name ?? `#${it.item_id}`} × {it.qty}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 text-right">
+              {o.status === 'preparing' ? (
+                <button
+                  onClick={() => markReady(o.order_id)}
+                  className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+                  disabled={marking}
+                >
+                  ทำเสร็จแล้ว
+                </button>
+              ) : (
+                <span className="text-sm text-stone-500">Ready</span>
+              )}
+            </div>
+          </div>
+        ))}
+        {lists[tab]?.length === 0 && !busy && (
+          <div className="rounded-2xl border border-stone-200 bg-white p-6 text-center text-sm text-stone-500">
+            {tab === 'preparing' ? 'ยังไม่มีออเดอร์ในคิว' : 'ยังไม่มีออเดอร์ที่เสร็จสิ้น'}
+          </div>
+        )}
       </div>
-    </div>
+
+      <div className="mt-3 text-xs text-stone-500">
+        {busy ? 'กำลังอัปเดตรายการ…' : 'อัปเดตเรียลไทม์ด้วย SSE'}
+      </div>
+    </section>
   );
 }

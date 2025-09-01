@@ -59,10 +59,19 @@ const OrderDTO = z.object({
   completed_at: z.string().datetime().nullable().optional(),
 });
 
-const DateRangeQuery = z.object({
-  from: z.string().date().optional(), // 'YYYY-MM-DD'
-  to: z.string().date().optional(),
+const YMD = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const DateRangeQuery = z.object({ from: YMD.optional(), to: YMD.optional() });
+const SalesQuery = z.object({ from: YMD.optional(), to: YMD.optional() });
+const TopMenuQuery = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(10),
+  from: YMD.optional(),
+  to: YMD.optional(),
 });
+
+// const DateRangeQuery = z.object({
+//   from: z.string().date().optional(), // 'YYYY-MM-DD'
+//   to: z.string().date().optional(),
+// });
 
 const OrderItemSchema = z.object({
   item_id: z.number().int().positive(),
@@ -92,10 +101,10 @@ const UpdateOrderResponse = z.object({
   completed_at: z.string().datetime().nullable(),
 });
 
-const SalesQuery = z.object({
-  from: z.string().date().optional(), // 'YYYY-MM-DD'
-  to: z.string().date().optional(), // 'YYYY-MM-DD'
-});
+// const SalesQuery = z.object({
+//   from: z.string().date().optional(), // 'YYYY-MM-DD'
+//   to: z.string().date().optional(), // 'YYYY-MM-DD'
+// });
 
 const SalesPointDTO = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // YYYY-MM-DD
@@ -103,11 +112,11 @@ const SalesPointDTO = z.object({
   revenue: z.number().nonnegative(),
 });
 
-const TopMenuQuery = z.object({
-  limit: z.coerce.number().int().positive().max(100).default(10),
-  from: z.string().date().optional(),
-  to: z.string().date().optional(),
-});
+// const TopMenuQuery = z.object({
+//   limit: z.coerce.number().int().positive().max(100).default(10),
+//   from: z.string().date().optional(),
+//   to: z.string().date().optional(),
+// });
 
 const TopMenuItemDTO = z.object({
   item_id: z.number().int().positive(),
@@ -587,7 +596,15 @@ export async function buildApp() {
   return app;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  // รันจริงเฉพาะเมื่อเรียกตรงจาก node
-  buildApp().then((app) => app.listen({ port: Number(process.env.PORT || 4000), host: '0.0.0.0' }));
+// if (import.meta.url === `file://${process.argv[1]}`) {
+//   buildApp().then((app) => app.listen({ port: Number(process.env.PORT || 4000), host: '0.0.0.0' }));
+// }
+const isMain = process.argv[1]?.replace(/\\/g, '/').endsWith('/src/index.ts');
+if (isMain) {
+  buildApp()
+    .then((app) => app.listen({ port: Number(process.env.PORT || 4000), host: '0.0.0.0' }))
+    .catch((e) => {
+      console.error('Server boot error', e);
+      process.exit(1);
+    });
 }
