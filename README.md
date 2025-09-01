@@ -24,7 +24,8 @@ pnpm dev:both   # run api (4000) + web (3000)
 - **Customer** → http://localhost:3000/menu
 - **Barista** → http://localhost:3000/barista
 - **Manager** → http://localhost:3000/analytics
-- **API Docs** → http://localhost:4000/api/doc
+- **API Docs** → http://localhost:4000/api/docs
+
 ---
 
 ## 🗄️Database
@@ -66,7 +67,7 @@ Start Web:  pnpm  --filter  web  start
 **กลับไปที่ลูกค้า**
 -   สถานะเปลี่ยนเป็น **พร้อมรับแล้ว** ✅
     
-**เปิด /manager/analytics**
+**เปิด /analytics**
 -   เห็นยอดขาย, เมนู top, ชั่วโมงพีค
 
 ---
@@ -78,8 +79,8 @@ Start Web:  pnpm  --filter  web  start
 flowchart LR
 subgraph Client
 A[Customer Web /menu]
-B[Barista Web /staff/barista]
-C[Manager Web /manager/analytics]
+B[Barista Web /barista]
+C[Manager Web /analytics]
 end
 
 subgraph API Service
