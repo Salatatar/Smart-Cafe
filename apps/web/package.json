@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest",
-    "test:web": "vitest --run"
+    "test:web": "vitest --run",
+    "playwright": "playwright test",
+    "playwright:ui": "playwright test --ui"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.85.5",

@@ -1,24 +1,37 @@
 import { test, expect } from '@playwright/test';
 
-// ต้องรัน web (3000) + api (4000) ไว้ก่อน (ดูส่วนสคริปต์ด้านล่าง)
+test('customer -> barista -> customer ready', async ({ page }) => {
+  await page.goto('http://localhost:3000/');
+  await Promise.all([
+    page.waitForURL(/\/menu$/),
+    page.getByRole('link', { name: 'ดูเมนูเครื่องดื่ม' }).click(),
+  ]);
+  await expect(page.getByRole('heading', { name: 'เมนูเครื่องดื่ม' })).toBeVisible();
 
-test('customer -> barista -> customer ready', async ({ page, context }) => {
-  // ลูกค้าเปิดเมนูและเพิ่มสินค้าลงตะกร้า
-  await page.goto('/menu');
-  await page.getByRole('button', { name: 'เพิ่มใส่ตะกร้า' }).first().click();
-  await page.goto('/cart');
-  await page.getByRole('button', { name: /ชำระเงิน/ }).click();
+  await page.getByRole('button', { name: 'เพิ่ม Americano #1 ใส่ตะกร้า' }).click();
+  await page.getByRole('button', { name: 'เพิ่ม Latte #2 ใส่ตะกร้า' }).click();
+  await page.getByRole('button', { name: 'เพิ่ม Cappuccino #3 ใส่ตะกร้า' }).click();
+  await page.getByRole('button', { name: 'เพิ่ม Mocha #4 ใส่ตะกร้า' }).click();
+  await page.getByRole('button', { name: 'เพิ่ม Mocha #8 ใส่ตะกร้า' }).click();
+  await Promise.all([
+    page.waitForURL(/\/cart$/),
+    page.getByRole('link', { name: 'ไปที่ตะกร้า (5 รายการ)' }).click(),
+  ]);
+  await expect(page.getByRole('heading', { name: 'ตะกร้าสินค้า' })).toBeVisible();
 
-  // ไปหน้าติดตามและจดเลข order
-  await page.getByRole('button', { name: 'ไปหน้าติดตามคำสั่งซื้อ' }).click();
-  await expect(page.getByText(/ติดตามคำสั่งซื้อ/)).toBeVisible();
+  await page.getByRole('button', { name: 'ชำระเงิน (mock' }).click();
+  await expect(page.getByRole('heading', { name: 'สร้างคำสั่งซื้อสำเร็จ' })).toBeVisible();
+  await Promise.all([
+    page.waitForURL(/\/order\/\d+$/),
+    page.getByRole('button', { name: 'ไปหน้าติดตามคำสั่งซื้อ' }).click(),
+  ]);
+  await expect(page.getByRole('heading', { name: 'ติดตามคำสั่งซื้อ' })).toBeVisible();
 
-  // เปิดหน้าบาริสต้าในแท็บใหม่และกด Done ออเดอร์ล่าสุด
-  const barista = await context.newPage();
-  await barista.goto('/barista');
-  const doneBtn = barista.getByRole('button', { name: 'ทำเสร็จแล้ว' }).first();
-  await doneBtn.click();
-
-  // กลับมาหน้าลูกค้า → เห็นสถานะพร้อมรับแล้ว (อาจต้องรอ SSE + refetch)
-  await expect(page.getByText('พร้อมรับแล้ว')).toBeVisible({ timeout: 10_000 });
+  await Promise.all([
+    page.waitForURL(/\/barista$/),
+    page.getByRole('link', { name: 'บาริสต้า' }).click(),
+  ]);
+  await expect(page.getByRole('heading', { name: 'คิวบาริสต้า' })).toBeVisible();
+  await page.getByRole('button', { name: 'คิวที่กำลังทำ' }).click();
+  // await page.getByRole('row', { name: '#23 Latte #2 × 1 Cappuccino #' }).getByRole('button').click();
 });

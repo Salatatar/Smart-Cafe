@@ -6,5 +6,10 @@ coverage
 .playwright
 .idea
 .vscode
+
 # Prisma migrations
 **/prisma/migrations/
+
+# Playwright reports & test results
+playwright-report/
+test-results/

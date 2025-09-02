@@ -46,15 +46,6 @@ pnpm  a11y  # accessibility
 
 ---
 
-## 🚢 Deployment
-```bash
-Build:  pnpm  build
-Start API:  pnpm  --filter  api  start
-Start Web:  pnpm  --filter  web  start
-```
-
----
-
 ## 🎬 Demo Guide (สำหรับทีม/สาธิต)
 เปิด **2 browser window**
 
